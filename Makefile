@@ -7,7 +7,7 @@ IDIR=-I. -Ispxe
 LIBS=utopia imgtool
 CC=gcc
 NAME=wfc
-SRC=src/*.c
+SRC=src/wfc.c
 
 LDIR=lib
 IDIR += $(patsubst %,-I%/,$(LIBS))
