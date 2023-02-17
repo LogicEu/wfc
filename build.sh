@@ -2,13 +2,14 @@
 
 name=wfc
 cc=gcc
-src=src/*.c
+src=main.c
 
 flags=(
     -std=c99
     -O2
     -Wall
     -Wextra
+    -pedantic
 )
 
 inc=(
@@ -20,7 +21,6 @@ inc=(
 
 lib=(
     -Llib
-    -lutopia
     -limgtool
     -lz
     -lpng
@@ -54,7 +54,6 @@ lib_build() {
 
 build() {
     [ ! -d lib ] && mkdir lib && echo "mkdir lib"
-    lib_build utopia static
     lib_build imgtool static
 }
 

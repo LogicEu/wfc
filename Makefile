@@ -1,13 +1,13 @@
 # wfc makefile
 
 STD=-std=c99
-WFLAGS=-Wall -Wextra
+WFLAGS=-Wall -Wextra -pedantic
 OPT=-O2
-IDIR=-I. -Ispxe
-LIBS=utopia imgtool
+IDIR=-I. -Iutopia -Ispxe
+LIBS=imgtool
 CC=gcc
 NAME=wfc
-SRC=src/*.c
+SRC=main.c
 
 LDIR=lib
 IDIR += $(patsubst %,-I%/,$(LIBS))

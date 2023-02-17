@@ -1,8 +1,69 @@
-#include "wfc.h"
+#ifndef WAVEFUNCOLLAPSE_H
+#define WAVEFUNCOLLAPSE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <imgtool.h>
+#include <utopia/vector.h>
+
+#define WFC_ENTROPY     0
+#define WFC_MRV         1
+#define WFC_SCANLINE    2
+
+typedef struct int4 {
+    int data[4];
+} int4;
+
+struct wfc_model {
+    unsigned int N;
+    unsigned int width;
+    unsigned int height;
+    struct vector colors;
+    struct vector patterns;
+    struct vector weights;
+    struct vector stack;
+    bool* wave;
+    int4* compatible;
+    int* sumofones;
+    double* weightLog;
+    double* distribution;
+    double* sumsofweights;
+    double* sumsofweightsLog;
+    double* entropies;
+    double sumweights;
+    double sumweightlogs;
+    double start_entropy;
+    struct vector* propagator;
+};
+
+/* implementation assumes 4-channel RGBA */
+struct wfc_model wfc_model_create(const uint8_t* pixbuf, unsigned inWidth, unsigned inHeight, unsigned outWidth, unsigned outHeight, unsigned N, bool periodic, int symmetry);
+void wfc_model_destroy(struct wfc_model* model);
+void wfc_model_save(const struct wfc_model* model, uint8_t* pixbuf, bool periodic);
+bool wfc_model_step(struct wfc_model* model, int heuristic, bool periodic);
+bool wfc_model_run(struct wfc_model* model, int heuristic, bool periodic, const int steps);
+bool wfc_model_collapse(struct wfc_model* model, const int node, const int r);
+bool wfc_model_observe(struct wfc_model* model, const int node);
+int  wfc_model_scan(const struct wfc_model* model, int heuristic, bool periodic);
+bool wfc_model_clear(struct wfc_model* model, bool periodic, bool ground);
+bool wfc_model_propagate(struct wfc_model* model, bool periodic);
+bool wfc_model_ban(struct wfc_model* model, const int i, const int t);
+
+#endif /* WAVEFUNCOLLAPSE_H */
+
+#ifdef WAVEFUNCOLLAPSE_APPLICATION
+#ifndef WAVEFUNCOLLAPSE_IMPLEMENTED
+#define WAVEFUNCOLLAPSE_IMPLEMENTED
+
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+
+#define UTOPIA_IMPLEMENTATION
+#define UTOPIA_HASH_UINT
+#include <utopia/map.h>
+#include <utopia/vector.h>
 
 /* random floating point operations */
 
@@ -35,7 +96,7 @@ static int wfc_random_distribution(double* weights, const double r, const int le
 
 /* pattern operations */
 
-static uint8_t* wfc_protate(const uint8_t* p, const int N)
+static uint8_t* wfc_pattern_rotate(const uint8_t* p, const int N)
 {
     uint8_t* result = malloc(N * N);
     for (int y = 0; y < N; ++y) {
@@ -46,7 +107,7 @@ static uint8_t* wfc_protate(const uint8_t* p, const int N)
     return result;
 }
 
-static uint8_t* wfc_preflect(const uint8_t* p, const int N)
+static uint8_t* wfc_pattern_reflect(const uint8_t* p, const int N)
 {
     uint8_t* result = malloc(N * N);
     for (int y = 0; y < N; ++y) {
@@ -57,7 +118,7 @@ static uint8_t* wfc_preflect(const uint8_t* p, const int N)
     return result;
 }
 
-static uint8_t* wfc_psampler(
+static uint8_t* wfc_pattern_sampler(
     const uint8_t* p,   const int width,    const int height, 
     const int N,        const int xpos,     const int ypos)
 {
@@ -70,7 +131,7 @@ static uint8_t* wfc_psampler(
     return result;
 }
 
-static bool wfc_pagrees(
+static bool wfc_pattern_agrees(
     const uint8_t* p1,  const uint8_t* p2, 
     const int dx,       const int dy,       const int N)
 {
@@ -85,7 +146,7 @@ static bool wfc_pagrees(
     return true;
 }
 
-static long wfc_phash(const uint8_t* p, const int len, const long C)
+static long wfc_pattern_hash(const uint8_t* p, const int len, const long C)
 {
     long result = 0, power = 1;
     for (int i = 0; i < len; i++) {
@@ -97,11 +158,15 @@ static long wfc_phash(const uint8_t* p, const int len, const long C)
 
 /* static model initialization  */
 
+typedef struct int2 {
+    int data[2];
+} int2;
+
 static int dirx[4] = { -1, 0, 1, 0 };
 static int diry[4] = { 0, 1, 0, -1 };
 static int opposite[4] = { 2, 3, 0, 1 };
 
-static void wfc_model_init(wfc_model_t* model)
+static void wfc_model_init(struct wfc_model* model)
 {
     const int T = model->weights.size;
     const int wavelen = model->width * model->height;
@@ -130,17 +195,17 @@ static void wfc_model_init(wfc_model_t* model)
     model->sumsofweights = malloc(sizeof(double) * wavelen);
     model->sumsofweightsLog = malloc(sizeof(double) * wavelen);
     model->entropies = malloc(sizeof(double) * wavelen);
-    model->stack = array_create(sizeof(int2));
+    model->stack = vector_create(sizeof(int2));
 }
 
-static void wfc_model_parse(wfc_model_t* model, const bmp_t* bmp, const int symmetry, bool periodic_input)
+static void wfc_model_analize(struct wfc_model* model, const uint8_t* pixbuf, unsigned width, unsigned height, const int symmetry, bool periodic_input)
 {
-    const uint32_t* px = (uint32_t*)bmp->pixels;
+    const uint32_t* px = (uint32_t*)pixbuf;
     const uint32_t* cols = (uint32_t*)model->colors.data;
-    const int len = bmp->width * bmp->height;
+    const int len = width * height;
     const int N = model->N;
     
-    uint8_t* sample = malloc(bmp->width * bmp->height);
+    uint8_t* sample = malloc(width * height);
 
     for (int i = 0, j; i < len; ++i) {
 
@@ -151,46 +216,45 @@ static void wfc_model_parse(wfc_model_t* model, const bmp_t* bmp, const int symm
         }
         
         if (j == (int)model->colors.size) {
-            array_push(&model->colors, px + i);
+            vector_push(&model->colors, px + i);
             cols = model->colors.data;
         }
 
         sample[i] = (uint8_t)j;
     }
 
-    map_t pindices = map_create(sizeof(long), sizeof(size_t));
-    map_overload(&pindices, &hash_uint);
+    struct map pindices = map_create(sizeof(long), sizeof(size_t));
 
     const int nsqr = N * N;
-    const int xmax = periodic_input ? bmp->width : bmp->width - N + 1;
-    const int ymax = periodic_input ? bmp->height : bmp->height - N + 1;
+    const int xmax = periodic_input ? width : width - N + 1;
+    const int ymax = periodic_input ? height : height - N + 1;
 
     double* w = model->weights.data, one = 1.0;
     for (int y = 0; y < ymax; ++y) {
         for (int x = 0; x < xmax; ++x) {
             
             uint8_t* ps[8];
-            ps[0] = wfc_psampler(sample, bmp->width, bmp->height, N, x, y);
-            ps[1] = wfc_preflect(ps[0], N);
-            ps[2] = wfc_protate(ps[0], N);
-            ps[3] = wfc_preflect(ps[2], N);
-            ps[4] = wfc_protate(ps[2], N);
-            ps[5] = wfc_preflect(ps[4], N);
-            ps[6] = wfc_protate(ps[4], N);
-            ps[7] = wfc_preflect(ps[6], N);
+            ps[0] = wfc_pattern_sampler(sample, width, height, N, x, y);
+            ps[1] = wfc_pattern_reflect(ps[0], N);
+            ps[2] = wfc_pattern_rotate(ps[0], N);
+            ps[3] = wfc_pattern_reflect(ps[2], N);
+            ps[4] = wfc_pattern_rotate(ps[2], N);
+            ps[5] = wfc_pattern_reflect(ps[4], N);
+            ps[6] = wfc_pattern_rotate(ps[4], N);
+            ps[7] = wfc_pattern_reflect(ps[6], N);
 
             for (int i = 0; i < 8; i++) {
                 if (i < symmetry) {
                     uint8_t* p = ps[i];
-                    const long h = wfc_phash(p, nsqr, model->colors.size);
+                    const long h = wfc_pattern_hash(p, nsqr, model->colors.size);
                     size_t index = map_search(&pindices, &h);
                     if (index--) {
                         w[index] += 1.0;
                         free(ps[i]);
                     } else {
                         map_push(&pindices, &h, &model->weights.size);
-                        array_push(&model->weights, &one);
-                        array_push(&model->patterns, &p);
+                        vector_push(&model->weights, &one);
+                        vector_push(&model->patterns, &p);
                         w = model->weights.data;
                     }
                 } else {
@@ -204,15 +268,15 @@ static void wfc_model_parse(wfc_model_t* model, const bmp_t* bmp, const int symm
     free(sample);
 
     const int T = model->weights.size;
-    model->propagator = malloc(4 * T * sizeof(array_t));
+    model->propagator = malloc(4 * T * sizeof(struct vector));
 
     const uint8_t** ps = model->patterns.data;
     for (int d = 0; d < 4; d++) {
         for (int t = 0; t < T; t++) {
-            array_t arr = array_create(sizeof(int));
+            struct vector arr = vector_create(sizeof(int));
             for (int t2 = 0; t2 < T; t2++) {
-                if (wfc_pagrees(ps[t], ps[t2], dirx[d], diry[d], N)) {
-                    array_push(&arr, &t2);
+                if (wfc_pattern_agrees(ps[t], ps[t2], dirx[d], diry[d], N)) {
+                    vector_push(&arr, &t2);
                 }
             }
             model->propagator[d * T + t] = arr;
@@ -222,7 +286,7 @@ static void wfc_model_parse(wfc_model_t* model, const bmp_t* bmp, const int symm
 
 /* low-level wfc operations */
 
-bool wfc_model_ban(wfc_model_t* model, const int i, const int t)
+bool wfc_model_ban(struct wfc_model* model, const int i, const int t)
 {
     const int T = model->weights.size;
     double* weights = model->weights.data;
@@ -231,7 +295,7 @@ bool wfc_model_ban(wfc_model_t* model, const int i, const int t)
     memset(model->compatible + i * T + t, 0, sizeof(int4));
     
     int2 rec = {i, t};
-    array_push(&model->stack, &rec);
+    vector_push(&model->stack, &rec);
 
     model->sumofones[i] -= 1;
     model->sumsofweights[i] -= weights[t];
@@ -246,13 +310,13 @@ bool wfc_model_ban(wfc_model_t* model, const int i, const int t)
     return true;
 }
 
-bool wfc_model_propagate(wfc_model_t* model, bool periodic)
+bool wfc_model_propagate(struct wfc_model* model, bool periodic)
 {
     const int T = model->weights.size;
     const int N = model->N;
     while (model->stack.size > 0) {
         
-        const int2 n = *(int2*)array_pop(&model->stack);
+        const int2 n = *(int2*)vector_pop(&model->stack);
         const int i1 = n.data[0];
         const int t1 = n.data[1];
 
@@ -280,7 +344,7 @@ bool wfc_model_propagate(wfc_model_t* model, bool periodic)
             }
 
             int i2 = x2 + y2 * model->width;
-            const array_t pro = model->propagator[d * T + t1];
+            const struct vector pro = model->propagator[d * T + t1];
             const int* p = pro.data;
             for (size_t l = 0; l < pro.size; l++) {
                 int t2 = p[l];
@@ -296,7 +360,7 @@ bool wfc_model_propagate(wfc_model_t* model, bool periodic)
     return true;
 }
 
-int wfc_model_scan(const wfc_model_t* model, int heuristic, bool periodic)
+int wfc_model_scan(const struct wfc_model* model, int heuristic, bool periodic)
 {
     const int wavelen = model->width * model->height;
     if (heuristic == WFC_SCANLINE) {
@@ -339,7 +403,7 @@ int wfc_model_scan(const wfc_model_t* model, int heuristic, bool periodic)
     return argmin;
 }
 
-bool wfc_model_collapse(wfc_model_t* model, const int node, const int r)
+bool wfc_model_collapse(struct wfc_model* model, const int node, const int r)
 {
     const int T = model->weights.size;
     const int K = node * T;
@@ -351,7 +415,7 @@ bool wfc_model_collapse(wfc_model_t* model, const int node, const int r)
     return true;
 }
 
-bool wfc_model_observe(wfc_model_t* model, const int node)
+bool wfc_model_observe(struct wfc_model* model, const int node)
 {
     const int T = model->weights.size;
     const int K = node * T;
@@ -367,7 +431,7 @@ bool wfc_model_observe(wfc_model_t* model, const int node)
 
 /* wfc model handling functions */
 
-bool wfc_model_clear(wfc_model_t* model, bool periodic, bool ground)
+bool wfc_model_clear(struct wfc_model* model, bool periodic, bool ground)
 {
     const int T = model->weights.size;
     const int wavelen = model->width * model->height;
@@ -406,23 +470,24 @@ bool wfc_model_clear(wfc_model_t* model, bool periodic, bool ground)
     return true;
 }
 
-wfc_model_t wfc_model_create(   
-    const bmp_t* bmp,   unsigned width, unsigned height, 
-    unsigned N,         bool periodic,  int symmetry)
+struct wfc_model wfc_model_create(   
+    const uint8_t* pixbuf, unsigned inWidth, unsigned inHeight,
+    unsigned outWidth, unsigned outHeight, unsigned N, bool periodic, 
+    int symmetry)
 {
-    wfc_model_t model;
-    model.width = width;
-    model.height = height;
+    struct wfc_model model;
+    model.width = outWidth;
+    model.height = outHeight;
     model.N = N;
-    model.colors = array_create(sizeof(uint32_t));
-    model.patterns = array_create(sizeof(uint8_t*));
-    model.weights = array_create(sizeof(double));
-    wfc_model_parse(&model, bmp, symmetry, periodic);
+    model.colors = vector_create(sizeof(uint32_t));
+    model.patterns = vector_create(sizeof(uint8_t*));
+    model.weights = vector_create(sizeof(double));
+    wfc_model_analize(&model, pixbuf, inWidth, inHeight, symmetry, periodic);
     wfc_model_init(&model);
     return model;
 }
 
-void wfc_model_destroy(wfc_model_t* model)
+void wfc_model_destroy(struct wfc_model* model)
 {
     uint8_t** ps = model->patterns.data;
     for (size_t i = 0; i < model->patterns.size; ++i) {
@@ -431,13 +496,13 @@ void wfc_model_destroy(wfc_model_t* model)
 
     const size_t propcount = model->weights.size * 4;
     for (size_t i = 0; i < propcount; ++i) {
-        array_free(model->propagator + i);
+        vector_free(model->propagator + i);
     }
 
-    array_free(&model->patterns);
-    array_free(&model->colors);
-    array_free(&model->weights);
-    array_free(&model->stack);
+    vector_free(&model->patterns);
+    vector_free(&model->colors);
+    vector_free(&model->weights);
+    vector_free(&model->stack);
 
     free(model->weightLog);
     free(model->entropies);
@@ -450,13 +515,13 @@ void wfc_model_destroy(wfc_model_t* model)
     free(model->wave);
 }
 
-bool wfc_model_step(wfc_model_t* model, int heuristic, bool periodic)
+bool wfc_model_step(struct wfc_model* model, int heuristic, bool periodic)
 {
     const int node = wfc_model_scan(model, heuristic, periodic);
     return node >= 0 && wfc_model_observe(model, node) && wfc_model_propagate(model, periodic);
 }
 
-bool wfc_model_run(wfc_model_t* model, int heuristic, bool periodic, const int steps)
+bool wfc_model_run(struct wfc_model* model, int heuristic, bool periodic, const int steps)
 {
     for (int i = 0; i < steps || steps < 0; ++i) {
         if (!wfc_model_step(model, heuristic, periodic)) {
@@ -466,7 +531,7 @@ bool wfc_model_run(wfc_model_t* model, int heuristic, bool periodic, const int s
     return true;
 }
 
-void wfc_model_save(const wfc_model_t* model, uint8_t* pixbuf, bool periodic)
+void wfc_model_save(const struct wfc_model* model, uint8_t* pixbuf, bool periodic)
 {
     const int MX = model->width, MY = model->height;
     const int T = model->weights.size, N = model->N, wavelen = MX * MY;
@@ -515,3 +580,6 @@ void wfc_model_save(const wfc_model_t* model, uint8_t* pixbuf, bool periodic)
         }
     }
 }
+
+#endif /* WAVEFUNCOLLAPSE_IMPLEMENTED */
+#endif /* WAVEFUNCOLLAPSE_APPLICATION */
