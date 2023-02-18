@@ -1,5 +1,5 @@
 
-/*  Copyright (c) 2022 Eugenio Arteaga A.
+/*  Copyright (c) 2023 Eugenio Arteaga A.
 
 Permission is hereby granted, free of charge, to any 
 person obtaining a copy of this software and associated 
@@ -23,8 +23,12 @@ OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
-#ifndef WAVEFUNCOLLAPSE_H
-#define WAVEFUNCOLLAPSE_H
+#ifndef WFC_DECLS
+#define WFC_DECLS
+
+/**************************
+ * WAVE FUNCTION COLLAPSE *
+ *************************/
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -74,11 +78,15 @@ bool wfc_model_clear(struct wfc_model* model, bool periodic, bool ground);
 bool wfc_model_propagate(struct wfc_model* model, bool periodic);
 bool wfc_model_ban(struct wfc_model* model, const int i, const int t);
 
-#endif /* WAVEFUNCOLLAPSE_H */
+#endif /* WFC_DECLS */
 
-#ifdef WAVEFUNCOLLAPSE_APPLICATION
-#ifndef WAVEFUNCOLLAPSE_IMPLEMENTED
-#define WAVEFUNCOLLAPSE_IMPLEMENTED
+/**************************
+ * WAVE FUNCTION COLLAPSE *
+ *************************/
+
+#ifdef WFC_APPLICATION
+#ifndef WFC_IMPLEMENTED
+#define WFC_IMPLEMENTED
 
 #include <stdlib.h>
 #include <string.h>
@@ -606,5 +614,5 @@ void wfc_model_save(const struct wfc_model* model, uint8_t* pixbuf, bool periodi
     }
 }
 
-#endif /* WAVEFUNCOLLAPSE_IMPLEMENTED */
-#endif /* WAVEFUNCOLLAPSE_APPLICATION */
+#endif /* WFC_IMPLEMENTED */
+#endif /* WFC_APPLICATION */
