@@ -9,13 +9,15 @@
 
 ## Header-Only
 
-> To acces the implementation details in wfc.h you need to define the flag 
-> WFC_APPLICATION. You should only define WFC_APPLICATION in a single translation.
+> To acces the implementation details you need to define WFC_APPLICATION before 
+> including the wfc.h header file.
 
 ```C
 #define WFC_APPLICATION
 #include "wfc.h"
 ```
+
+> You should only define WFC_APPLICATION in a single translation unit.
 
 ## Dependencies
 
