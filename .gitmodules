@@ -6,4 +6,4 @@
 	url = https://github.com/LogicEu/imgtool.git
 [submodule "utopia"]
 	path = utopia
-	url = https://github.com:LogicEu/utopia.git
+	url = https://github.com/LogicEu/utopia.git
