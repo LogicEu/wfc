@@ -3,7 +3,9 @@
 > Implementation of the [Wave Function
 > Collapse](https://github.com/mxgmn/WaveFunctionCollapse) algorithm as
 > a header only solution in C. If you want to learn about the algorithm
-> I suggest you to check out the original implementation [here](https://github.com/mxgmn/WaveFunctionCollapse).
+> I suggest you to check out the original implementation
+> [here](https://github.com/mxgmn/WaveFunctionCollapse). The image samples are
+> taken from the original repo.
 
 # Header-Only
 
