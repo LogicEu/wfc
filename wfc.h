@@ -327,7 +327,7 @@ bool wfc_model_ban(struct wfc_model* model, const int i, const int t)
     model->wave[i * T + t] = false;
     memset(model->compatible + i * T + t, 0, sizeof(int4));
     
-    int2 rec = {i, t};
+    int2 rec = {{i, t}};
     vector_push(&model->stack, &rec);
 
     model->sumofones[i] -= 1;

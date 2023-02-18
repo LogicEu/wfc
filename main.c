@@ -76,7 +76,7 @@ static void bmp_plot(Px* fb, const bmp_t* bmp, const int x, const int y)
         ypos >= 0 && ypos < spxe.scrres.height) {
         for (unsigned int y = 0; y < bmp->height; ++y) {
             const int width =   (int)bmp->width < spxe.scrres.width - xpos ? 
-                                bmp->width : 
+                                (int)bmp->width : 
                                 spxe.scrres.width - xpos;
             memcpy(
                 fb + (bmp->height - y - 1 + ypos) * spxe.scrres.width + xpos, 
@@ -91,7 +91,7 @@ static void wfc_file_drop_input(GLFWwindow* window, int count, const char** path
 {
     (void)window;
     if (count) {
-        strncpy(wfc_input_file, paths[0], STRSIZE);
+        strncpy(wfc_input_file, paths[0], STRSIZE - 1);
     }
 }
 
