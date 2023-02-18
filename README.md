@@ -2,22 +2,22 @@
 
 > Implementation of the [Wave Function
 > Collapse](https://github.com/mxgmn/WaveFunctionCollapse) algorithm as
-> a header only solution in C. If you want to learn about the algorithm
+> a header only solution in C99. If you want to learn about the algorithm
 > I suggest you to check out the original implementation
 > [here](https://github.com/mxgmn/WaveFunctionCollapse). The image samples are
 > taken from the original repo.
 
-# Header-Only
+## Header-Only
 
-> To acces the implementation details in wfc.h you need the define the compilation 
-> flag WFC_APPLICATION. You should only define WFC_APPLICATION in a single translation.
+> To acces the implementation details in wfc.h you need to define the flag 
+> WFC_APPLICATION. You should only define WFC_APPLICATION in a single translation.
 
 ```C
 #define WFC_APPLICATION
 #include "wfc.h"
 ```
 
-# Dependencies
+## Dependencies
 
 > The only real dependency of wfc.h is [utopia](https://github.com/LogicEu/utopia.git),
 > a generic data structure and header-only library in C.

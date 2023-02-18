@@ -172,7 +172,7 @@ int main(const int argc, const char** argv)
 
     bmp_t outbmp = bmp_new(width, height, 4);
     Px* fb = spxeStart("Wave Function Collapse", 800, 600, WIDTH, HEIGHT);
-    glfwSetDropCallback(spxe.window, wfc_file_drop_input);
+    glfwSetDropCallback(spxe.window, &wfc_file_drop_input);
     memset(fb, 125, WIDTH * HEIGHT * 4);
     bmp_plot(fb, &bmp, -33, 0);
 
